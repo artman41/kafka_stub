@@ -11,7 +11,9 @@
     create/1,
     insert/3,
     lookup/1,
-    get_topics/0
+    get_topics/0,
+    get_latest/2,
+    get_from_offset/2, get_from_offset/3
 ]).
 
 %% gen_server.
@@ -56,6 +58,48 @@ lookup(TopicName) ->
             {ok, Entry}
     end.
 
+-spec get_latest(TopicName :: binary(), Key :: binary()) -> {ok, {Offset :: integer(), Value :: binary()}} | undefined.
+get_latest(TopicName, Key) ->
+    case lookup(TopicName) of
+        undefined ->
+            undefined;
+        {ok, #ks_entry{tab = Tab}} ->
+            case ets:lookup(Tab, Key) of
+                [] ->
+                    undefined;
+                KVs ->
+                    {Key, Value, Offset} = lists:last(KVs),
+                    {ok, {Offset, Value}}
+            end
+    end.
+
+get_from_offset(TopicName, Offset) ->
+    case lookup(TopicName) of
+        undefined ->
+            undefined;
+        {ok, #ks_entry{tab = Tab}} ->
+            {ok, [begin
+                OffsetValues =
+                    [{Offset, Value} || {_, Value, Offset} <- lists:dropwhile(fun({Key, Value, KVOffset}) -> KVOffset < Offset end, KVs)],
+                {Key, OffsetValues}
+            end || KVs = [{Key,_,_}|_] <- ets:tab2list(Tab)]}
+    end.
+
+get_from_offset(TopicName, Key, Offset) ->
+    case lookup(TopicName) of
+        undefined ->
+            undefined;
+        {ok, #ks_entry{tab = Tab}} ->
+            case ets:lookup(Tab, Key) of
+                [] ->
+                    undefined;
+                KVs ->
+                    OffsetValues =
+                        [{Offset, Value} || {_, Value, Offset} <- lists:dropwhile(fun({Key, Value, KVOffset}) -> KVOffset < Offset end, KVs)],
+                    {ok, OffsetValues}
+            end
+    end.
+
 get_topics() ->
     ets:select(?TAB, ets:fun2ms(fun(#ks_entry{topic_name = TopicName}) -> TopicName end)).
 
@@ -76,7 +120,7 @@ handle_call({insert, TopicName, Key, Value}, _From, State) ->
     Ret =
         case lookup(TopicName) of
             {ok, #ks_entry{tab = Tab, current_offset = CurrentOffset}} ->
-                ets:insert(Tab, {Key, Value}),
+                ets:insert(Tab, {Key, Value, CurrentOffset}),
                 ets:update_element(?TAB, TopicName, {#ks_entry.current_offset, CurrentOffset + 1}),
                 {ok, CurrentOffset};
             undefined ->
