@@ -4,11 +4,15 @@
 
 ### Startup a brod producer using
 
-Run `start_brod().` in the shell or call `shell_default:start_brod().`
+Call `shell_utils:start_brod().`
 
 ### Sending a produce command
 
-Run `produce(Key, Value).` in the shell or call `shell_default:produce(Key, Value).`
+Call `shell_utils:produce(Key, Value).`
+
+### Consuming data
+
+Call `shell_utils:consume().` or `shell_utils:consume(FromOffset).`
 
 ## Using in Suites
 
@@ -16,6 +20,34 @@ In an ideal world, the app will be started with `application:ensure_all_started(
 
 A client will then connect to this port on the host.
 
-Currently, only producing works where data is stored in a ets table located in the `ks_ets` gen_server.
+Currently, only producing & consuming works where data is stored in a ets table located in the `ks_ets` gen_server.
 
-Eventually, consumers will be properly handled.
+### Ets storage Format
+
+All ets records are defined in `ks_entry.hrl`.
+
+The main, named, ets table `ks_ets` has entries of `#ks_entry{}`.
+
+```
+#ks_entry{
+    topic_name :: binary(),
+    current_offset :: non_neg_integer(),
+    tab :: ets:tab()
+}
+```
+
+Each entry represents a topic and is keyed on the Topic Name.
+
+The topic entry itself contains an ets table (unnamed) with the property `ordered_set` which holds the data for that topic.
+
+Topic tables have entries of `#ks_topic_entry{}`
+
+```
+#ks_topic_entry{
+    offset :: non_neg_integer(),
+    key :: binary(),
+    value :: binary()
+}
+```
+
+These entries are keyed on their offset.

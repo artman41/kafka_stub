@@ -1,3 +1,4 @@
+% https://kafka.apache.org/protocol.html
 -module(ks_tcp_worker).
 -behaviour(gen_server).
 
@@ -15,7 +16,8 @@
 
 -record(state, {
     socket :: gen_tcp:socket(),
-    binacc :: binary()
+    binacc :: binary(),
+    msg_n :: integer()
 }).
 
 -record(message, {
@@ -44,9 +46,11 @@ start_link(Socket) ->
 
 init([Socket]) ->
     lager:info("Starting worker for socket ~p", [Socket]),
+    lager:md([{msg_n, 0}]),
     {ok, #state{
         socket = Socket,
-        binacc = <<>>
+        binacc = <<>>,
+        msg_n = 0
     }}.
 
 handle_call(_Request, _From, State) ->
@@ -55,10 +59,12 @@ handle_call(_Request, _From, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({tcp, Socket, Data}, State0 = #state{socket = Socket, binacc = BinAcc0}) ->
+handle_info({tcp, Socket, Data}, State0 = #state{socket = Socket, binacc = BinAcc0, msg_n = MsgN}) ->
+    lager:md([{msg_n, MsgN}]),
+    lager:info("Got data ~p~n", [Data]),
     inet:setopts(Socket, [{active, once}]),
     {KafkaMsgBin, BinAcc1} = read_kafka_message(<<BinAcc0/binary, Data/binary>>),
-    State1 = State0#state{binacc = BinAcc1},
+    State1 = State0#state{binacc = BinAcc1, msg_n = MsgN + 1},
     case parse_kafka_message(KafkaMsgBin) of
         undefined ->
             gen_tcp:send(Socket, <<0:32>>), %% Corrupt/invalid request
@@ -88,20 +94,28 @@ read_kafka_message(<<Length:32/integer, Data/binary>>) ->
             {<<>>, Data}
     end.
 
-parse_kafka_message(<<ApiKey:16, _ApiVersion:16, CorrelationId:32, Data/binary>>) ->
+parse_kafka_message(<<ApiKey:16, _ApiVersion:16, CorrelationId:32, Data0/binary>>) ->
+    <<ClientIdLen:16, Data1/binary>> = Data0,
+    <<ClientId:ClientIdLen/binary, Data2/binary>> = Data1,
     {ok, #message{
         api_key = kpro_schema:api_key(ApiKey),
         api_version = 0,
         correlation_id = CorrelationId,
-        client_id = <<>>,
-        request_data = Data
+        client_id = ClientId,
+        request_data = Data2
     }};
 parse_kafka_message(_) ->
     undefined.
 
 handle_kafka_message(#message{api_key = produce, correlation_id = CorrelationId, request_data = RequestData}, State = #state{socket = Socket}) ->
-    DecodedRequest = kafka_request_decoder:decode(produce, RequestData),
-    RespBody = kafka_response_encoder:encode(produce, CorrelationId, DecodedRequest),
+    DecodedRequest = kafka_request_decoder:decode_produce(RequestData),
+    RespBody = kafka_response_encoder:encode_produce(CorrelationId, DecodedRequest),
+    reply(Socket, RespBody),
+    {noreply, State};
+handle_kafka_message(#message{api_key = fetch, correlation_id = CorrelationId, request_data = RequestData}, State = #state{socket = Socket}) ->
+    DecodedRequest = kafka_request_decoder:decode_fetch(RequestData),
+    RespBody = kafka_response_encoder:encode_fetch(CorrelationId, DecodedRequest),
+    lager:info("Sending fetch response: ~p", [RespBody]),
     reply(Socket, RespBody),
     {noreply, State};
 handle_kafka_message(#message{api_key = metadata, correlation_id = CorrelationId}, State = #state{socket = Socket}) ->
@@ -175,6 +189,7 @@ reply(Socket, Data) when is_binary(Data) ->
 api_versions() ->
     [
         api_version(produce, 0, 0),
+        api_version(fetch, 0, 0),
         api_version(metadata, 0, 0),
         api_version(api_versions, 0, 0)
     ].

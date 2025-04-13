@@ -3,14 +3,14 @@ PROJECT_DESCRIPTION = New project
 PROJECT_VERSION = 0.1.0
 SP = 4
 
-DEPS :=
-DEPS += brod
-DEPS += lager
+SHELL_DEPS :=
+SHELL_DEPS += brod
+SHELL_DEPS += lager
 
 TEST_DEPS += meck
 
 dep_brod = git https://github.com/kafka4beam/brod.git 3.8.1
-dep_lager = git https://github.com/erlang-lager/lager.git 3.9.2
+dep_lager = git https://github.com/erlang-lager/lager.git e6b3178
 
 dep_meck = git https://github.com/eproxus/meck.git v1.0.0
 
