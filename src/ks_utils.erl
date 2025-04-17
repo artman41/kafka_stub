@@ -1,4 +1,4 @@
--module(shell_default).
+-module(ks_utils).
 
 -compile(export_all).
 

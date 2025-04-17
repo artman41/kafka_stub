@@ -4,15 +4,15 @@
 
 ### Startup a brod producer using
 
-Call `shell_utils:start_brod().`
+Call `ks_utils:start_brod().`
 
 ### Sending a produce command
 
-Call `shell_utils:produce(Key, Value).`
+Call `ks_utils:produce(Key, Value).`
 
 ### Consuming data
 
-Call `shell_utils:consume().` or `shell_utils:consume(FromOffset).`
+Call `ks_utils:consume().` or `ks_utils:consume(FromOffset).`
 
 ## Using in Suites
 
