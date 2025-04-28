@@ -1,6 +1,6 @@
 PROJECT = kafka_stub
 PROJECT_DESCRIPTION = New project
-PROJECT_VERSION = 0.1.1
+PROJECT_VERSION = 0.1.2
 SP = 4
 
 DEPS :=

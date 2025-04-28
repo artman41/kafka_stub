@@ -1,7 +1,11 @@
 -module(ks_config).
 -export([
+    get_host/0,
     get_port/0
 ]).
+
+get_host() ->
+    get_value(host, <<"localhost">>).
 
 get_port() ->
     get_value(port, 9092).

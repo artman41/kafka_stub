@@ -119,15 +119,15 @@ handle_kafka_message(#message{api_key = fetch, correlation_id = CorrelationId, r
     reply(Socket, RespBody),
     {noreply, State};
 handle_kafka_message(#message{api_key = metadata, correlation_id = CorrelationId}, State = #state{socket = Socket}) ->
-    %% Fake response: 1 broker (id=0, host=localhost, port=9092)
-    %% Very simplified — only works with `brod` expecting minimal structure
-
+    Hostname = ks_config:get_host(),
+    Port = ks_config:get_port(),
     BrokersSection = <<
         1:32,                      % broker count
         %% Broker Meta
         0:32,                      % node id
-        9:16, "localhost",         % host string
-        9092:32                    % port
+        
+        (byte_size(Hostname)):16, Hostname/binary, % host
+        Port:32                    % port
     >>,
 
     Topics = ks_ets:get_topics(),
