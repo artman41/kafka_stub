@@ -34,7 +34,7 @@ child_spec() ->
     #{
         id => ?MODULE,
         start => {?MODULE, start_link, []},
-        restart => permanent,
+        restart => temporary,
         shutdown => 5000,
         type => worker
     }.
